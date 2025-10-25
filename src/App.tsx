@@ -10,6 +10,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  console.log('🚀 Coach App initialized - ready for development!')
+  console.log('Environment:', import.meta.env.MODE)
+  console.log('Timestamp:', new Date().toISOString())
+
   return (
     <ThemeProvider>
       <AuthProvider>
