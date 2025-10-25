@@ -6,7 +6,7 @@ pages_build_output_dir = "./dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "coach-db"
-database_id = "" # Will be filled after creating the database
+database_id = "48720055-9d6f-4df0-9b4d-ff87fa03fbb3"
 
 # Environment variables
 [vars]

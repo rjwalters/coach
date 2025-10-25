@@ -7,7 +7,7 @@ import CoachPanel from '../components/CoachPanel'
 import ThemeToggle from '../components/ThemeToggle'
 
 export default function DashboardPage() {
-  const { logout, userId } = useAuth()
+  const { logout, user } = useAuth()
   const [activeMode, setActiveMode] = useState<'tasks' | 'interview'>('tasks')
 
   return (
@@ -16,8 +16,8 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Coach</h1>
-            {userId && (
-              <p className="text-xs text-muted-foreground">User ID: {userId.substring(0, 8)}...</p>
+            {user && (
+              <p className="text-xs text-muted-foreground">{user.email}</p>
             )}
           </div>
           <div className="flex gap-2">

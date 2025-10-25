@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import ThemeToggle from '../components/ThemeToggle'
 
 export default function LoginPage() {
-  const [passphrase, setPassphrase] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
@@ -24,24 +25,17 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      let success: boolean
-      if (isNewUser) {
-        success = await register(passphrase)
-        if (!success) {
-          setError('Failed to create account. Please try again.')
-        }
-      } else {
-        success = await login(passphrase)
-        if (!success) {
-          setError('Invalid passphrase or user not found')
-        }
-      }
+      const result = isNewUser
+        ? await register(email, password)
+        : await login(email, password)
 
-      if (success) {
+      if (result.success) {
         navigate('/dashboard')
+      } else {
+        setError(result.error || 'An error occurred. Please try again.')
       }
     } catch (err) {
-      setError('An error occurred. Please try again.')
+      setError('An unexpected error occurred. Please try again.')
       console.error(err)
     } finally {
       setIsLoading(false)
@@ -63,28 +57,44 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="passphrase" className="text-sm font-medium">
-                Passphrase
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
               </label>
               <Input
-                id="passphrase"
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
+              <Input
+                id="password"
                 type="password"
-                placeholder="Enter your passphrase"
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
                 minLength={8}
+                autoComplete={isNewUser ? 'new-password' : 'current-password'}
               />
               <p className="text-xs text-muted-foreground">
                 {isNewUser
-                  ? 'Choose a strong passphrase (min 8 characters). This will encrypt your data.'
-                  : 'Enter your passphrase to access your account'
+                  ? 'Choose a strong password (min 8 characters)'
+                  : 'Enter your password to access your account'
                 }
               </p>
             </div>
             {error && (
-              <div className="text-sm text-destructive">
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
                 {error}
               </div>
             )}
@@ -97,6 +107,8 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsNewUser(!isNewUser)
                   setError('')
+                  setEmail('')
+                  setPassword('')
                 }}
                 className="text-sm text-muted-foreground hover:text-foreground underline"
               >

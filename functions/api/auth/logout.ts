@@ -6,8 +6,9 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   const { DB } = context.env
 
   try {
-    const body = await context.request.json()
-    const { session_token } = body
+    // Get session token from Authorization header
+    const authHeader = context.request.headers.get('Authorization')
+    const session_token = authHeader?.replace('Bearer ', '')
 
     if (!session_token) {
       return new Response(
@@ -15,7 +16,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
           error: 'Session token required',
         }),
         {
-          status: 400,
+          status: 401,
           headers: { 'Content-Type': 'application/json' },
         }
       )
