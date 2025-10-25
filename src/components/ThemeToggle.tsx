@@ -5,9 +5,13 @@ export default function ThemeToggle() {
   const { theme, setTheme } = useTheme()
 
   const cycleTheme = () => {
-    if (theme === 'light') setTheme('dark')
-    else if (theme === 'dark') setTheme('system')
-    else setTheme('light')
+    let newTheme: 'light' | 'dark' | 'system'
+    if (theme === 'light') newTheme = 'dark'
+    else if (theme === 'dark') newTheme = 'system'
+    else newTheme = 'light'
+
+    console.log('🔄 ThemeToggle clicked! Cycling from', theme, 'to', newTheme)
+    setTheme(newTheme)
   }
 
   const getIcon = () => {

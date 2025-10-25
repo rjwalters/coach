@@ -12,7 +12,8 @@
       "Bash(npm run dev:*)",
       "Bash(curl:*)",
       "Bash(chmod:*)",
-      "Bash(node scripts/verify-console.mjs:*)"
+      "Bash(node scripts/verify-console.mjs:*)",
+      "Bash(node scripts/test-theme-toggle.mjs:*)"
     ],
     "deny": [],
     "ask": []

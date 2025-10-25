@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test:browser": "node scripts/verify-console.mjs",
+    "test:theme": "node scripts/test-theme-toggle.mjs",
     "test:verify": "npm run test:browser",
     "pages:dev": "wrangler pages dev --compatibility-date=2024-01-01 -- npm run dev",
     "pages:deploy": "npm run build && wrangler pages deploy ./dist",
