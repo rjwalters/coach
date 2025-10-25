@@ -1,3 +1,36 @@
+// Derive a deterministic user ID from a passphrase
+// This allows users to "login" using just their passphrase without storing credentials
+export async function deriveUserId(passphrase: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(passphrase)
+
+  // Use a fixed salt for user ID derivation (deterministic)
+  const fixedSalt = encoder.encode('coach-user-id-salt-v1')
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    data,
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  )
+
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: fixedSalt,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256
+  )
+
+  // Convert to hex string
+  const hashArray = Array.from(new Uint8Array(derivedBits))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 // Derive a cryptographic key from a passphrase using PBKDF2
 export async function deriveKey(passphrase: string, salt?: Uint8Array): Promise<CryptoKey> {
   const encoder = new TextEncoder()
