@@ -1,17 +1,10 @@
 import { z } from 'zod'
 import * as bcrypt from 'bcryptjs'
+import { registerRequestSchema, formatZodError } from '../../lib/schemas'
 
 interface Env {
   DB: D1Database
 }
-
-const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must be less than 128 characters'),
-})
 
 export async function onRequestPost(context: EventContext<Env, any, any>) {
   const { DB } = context.env
@@ -19,7 +12,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   try {
     // Parse and validate request body
     const body = await context.request.json()
-    const { email, password } = registerSchema.parse(body)
+    const { email, password } = registerRequestSchema.parse(body)
 
     // Check if user already exists
     const existingUser = await DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
@@ -77,16 +70,10 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
     console.error('Registration error:', error)
 
     if (error instanceof z.ZodError) {
-      return new Response(
-        JSON.stringify({
-          error: 'Validation error',
-          details: error.errors[0].message,
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      return new Response(JSON.stringify(formatZodError(error)), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     return new Response(

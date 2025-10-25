@@ -1,14 +1,10 @@
 import { z } from 'zod'
 import * as bcrypt from 'bcryptjs'
+import { loginRequestSchema, formatZodError } from '../../lib/schemas'
 
 interface Env {
   DB: D1Database
 }
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-})
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
@@ -18,7 +14,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   try {
     // Parse and validate request body
     const body = await context.request.json()
-    const { email, password } = loginSchema.parse(body)
+    const { email, password } = loginRequestSchema.parse(body)
 
     // Find user by email
     const user = await DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
@@ -92,16 +88,10 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
     console.error('Login error:', error)
 
     if (error instanceof z.ZodError) {
-      return new Response(
-        JSON.stringify({
-          error: 'Validation error',
-          details: error.errors[0].message,
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      return new Response(JSON.stringify(formatZodError(error)), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     return new Response(
