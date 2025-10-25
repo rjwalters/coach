@@ -13,9 +13,20 @@
     "lint": "tsc --noEmit",
     "pages:dev": "wrangler pages dev --compatibility-date=2024-01-01 -- npm run dev",
     "pages:deploy": "npm run build && wrangler pages deploy ./dist",
+    "pages:deploy:prod": "npm run build && wrangler pages deploy ./dist --branch=main",
     "db:create": "wrangler d1 create coach-db",
-    "db:init": "wrangler d1 execute coach-db --file=./schema.sql",
-    "db:migrate": "wrangler d1 execute coach-db --file=./schema.sql"
+    "db:create:prod": "wrangler d1 create coach-db-prod",
+    "db:local": "wrangler d1 execute coach-db --local --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute coach-db --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute coach-db --remote --file=./schema.sql",
+    "db:migrate:prod": "wrangler d1 execute coach-db --remote --file=./schema.sql",
+    "db:backup:local": "wrangler d1 export coach-db --local --output=./backups/backup-$(date +%Y%m%d-%H%M%S).sql",
+    "db:backup:remote": "wrangler d1 export coach-db --remote --output=./backups/backup-$(date +%Y%m%d-%H%M%S).sql",
+    "db:console:local": "wrangler d1 execute coach-db --local --command='SELECT * FROM users; SELECT * FROM todos;'",
+    "db:console:remote": "wrangler d1 execute coach-db --remote --command='SELECT * FROM users; SELECT * FROM todos;'",
+    "wrangler:login": "wrangler login",
+    "wrangler:whoami": "wrangler whoami",
+    "deploy": "npm run build && npm run db:migrate:remote && npm run pages:deploy:prod"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

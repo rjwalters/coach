@@ -39,30 +39,64 @@ npm run dev
 
 ### Database Setup
 
-1. Create a D1 database:
+1. Login to Cloudflare (first time only):
 ```bash
-wrangler d1 create coach-db
+npm run wrangler:login
 ```
 
-2. Update the `database_id` in `wrangler.toml` with the ID from the previous command
-
-3. Initialize the database schema:
+2. Create a D1 database:
 ```bash
-wrangler d1 execute coach-db --file=./schema.sql
+npm run db:create
 ```
 
-### Local Development with Wrangler
+3. Update the `database_id` in `wrangler.toml` with the ID from the previous command
+
+4. Initialize the database schema:
+```bash
+# For local development
+npm run db:migrate:local
+
+# For remote/production
+npm run db:migrate:remote
+```
+
+### Local Development
 
 ```bash
-# Run with Cloudflare Pages dev environment
+# Standard Vite dev server
+npm run dev
+
+# With Cloudflare Pages dev environment (includes D1 and Functions)
 npm run pages:dev
+```
+
+### Database Management
+
+```bash
+# Migrate database schema
+npm run db:migrate:local      # Local database
+npm run db:migrate:remote     # Remote database
+
+# Backup database
+npm run db:backup:local       # Backup local database
+npm run db:backup:remote      # Backup remote database
+
+# View database contents
+npm run db:console:local      # View local data
+npm run db:console:remote     # View remote data
+
+# Check Wrangler status
+npm run wrangler:whoami       # Check logged in account
 ```
 
 ### Deployment
 
 ```bash
-# Build and deploy to Cloudflare Pages
-npm run pages:deploy
+# Deploy to Cloudflare Pages
+npm run pages:deploy          # Deploy to preview
+
+# Full deployment (build + migrate + deploy)
+npm run deploy                # Builds, migrates remote DB, and deploys to production
 ```
 
 ## Security

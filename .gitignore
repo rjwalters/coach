@@ -26,9 +26,13 @@ dist-ssr
 # Wrangler
 .wrangler/
 .dev.vars
-wrangler.toml
 
 # Environment
 .env
 .env.local
 .env.production
+
+# Database backups
+backups/
+*.db
+*.sqlite
