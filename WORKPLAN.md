@@ -491,10 +491,227 @@ Core AI coaching features implemented:
 - `src/components/TodoList.tsx` (+113 lines)
 - `src/components/SecretNote.tsx` (-71 lines)
 
+### ✅ Phase 4 Productivity Tracking - COMPLETED! (2025-10-26)
+
+Minimal, focused completion tracking without added complexity:
+- ✅ Added `completed_at` timestamp column to todos table
+- ✅ Database migration script (`migrations/add-completed-at.sql`)
+- ✅ Updated todos API to track completion timestamps
+- ✅ Stats API endpoint (`/api/stats`) with productivity metrics
+- ✅ ProductivityStats component with beautiful UI
+- ✅ Dashboard integration
+- ✅ Wrangler updated to v4.45.0
+
+**Statistics Provided:**
+- Total completed (all time)
+- Completed today
+- Completed this week
+- Current streak (consecutive days with completions)
+- Completion rate (completed vs total created)
+- Motivational messages for streaks
+
+**Test Results:**
+- Build: ✅ TypeScript compilation successful
+- Stats calculation: ✅ Efficient queries with indexed timestamps
+- Streak logic: ✅ Handles gaps, starts from today/yesterday
+- UI: ✅ Responsive 4-grid layout with color-coded metrics
+
+**Implementation Highlights:**
+- No dates, priorities, or complex metadata
+- Just completion tracking for motivation
+- Smart streak calculation
+- Maintains zero-knowledge architecture
+- ~2-3 hour implementation (as estimated)
+
+**Files Changed:**
+- `functions/api/todos.ts` (updated for completed_at)
+- `functions/api/stats.ts` (NEW - 192 lines)
+- `src/components/ProductivityStats.tsx` (NEW - 107 lines)
+- `src/components/TodoList.tsx` (updated toggleTodo)
+- `src/pages/DashboardPage.tsx` (integrated stats)
+- `schema.sql` (added completed_at column)
+- `migrations/add-completed-at.sql` (NEW)
+- `package.json` (wrangler@4)
+
 **Next Priority:**
-1. Productivity tracking and completion stats
-2. Email verification (Phase 2)
-3. Additional AI coach features
+1. Google OAuth authentication (Phase 5)
+2. Domain selection and deployment
+3. Email verification (Phase 6)
+
+---
+
+## 🚀 NEXT: Phase 5 - Google OAuth Authentication
+
+### Overview
+Add "Sign in with Google" OAuth support while maintaining zero-knowledge encryption architecture.
+
+### Architecture Decision: Email-Derived Encryption for OAuth Users
+
+**For OAuth Users:**
+1. User signs in with Google → verified email obtained
+2. Client generates new DEK (or retrieves from localStorage)
+3. Derive encryption key from verified Google email using PBKDF2
+4. Encrypt DEK backup with email-derived key
+5. Store encrypted backup on server
+6. On new device: OAuth → derive key from email → decrypt DEK backup
+
+**Zero-Knowledge Properties:**
+- ✅ Server never has email-derived key
+- ✅ Client derives it from OAuth email each time
+- ✅ Email is cryptographically verified by Google
+- ✅ Server can't decrypt DEK backup
+- ✅ Maintains same security model as password users
+
+### Domain Selection (Required First!)
+
+**Checked and Taken:**
+- ❌ done.ai (business automation platform)
+- ❌ coach.app (likely premium/taken)
+- ❌ gtd.ai (may be taken)
+
+**Alternative Options to Check:**
+1. **Short & Memorable:**
+   - taskflow.ai
+   - doneflow.app
+   - mygtd.app
+   - getdone.app
+
+2. **Productivity-Focused:**
+   - taskcoach.ai
+   - flowcoach.app
+   - dailycoach.app
+   - smarttodo.app
+
+3. **Creative/Brandable:**
+   - coachify.app
+   - coachly.app
+   - coached.ai
+   - coachable.ai
+
+**Action Item:** Pick and register domain before OAuth setup (needed for redirect URIs)
+
+### Implementation Steps
+
+#### Step 1: Google Cloud Console Setup
+1. Go to https://console.cloud.google.com
+2. Create new project: "Coach" (or your chosen name)
+3. Enable Google+ API
+4. Navigate to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
+5. Configure OAuth consent screen:
+   - App name: "Coach" (or chosen name)
+   - User support email: your email
+   - Developer contact: your email
+   - Scopes: email, profile, openid
+6. Create OAuth Client ID:
+   - Application type: Web application
+   - Authorized JavaScript origins:
+     - `https://your-domain.app` (production)
+     - `http://localhost:8788` (development)
+   - Authorized redirect URIs:
+     - `https://your-domain.app/auth/google/callback`
+     - `http://localhost:8788/auth/google/callback`
+7. Save Client ID and Client Secret
+
+#### Step 2: Environment Variables
+Add to `wrangler.toml`:
+```toml
+[vars]
+GOOGLE_CLIENT_ID = "your-client-id.apps.googleusercontent.com"
+
+[env.production]
+GOOGLE_CLIENT_SECRET = "secret-value-here"  # Use secrets for production
+```
+
+For local development, create `.dev.vars`:
+```
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+#### Step 3: Database Schema Updates
+Already have oauth columns in users table:
+```sql
+oauth_provider TEXT,
+oauth_id TEXT,
+```
+No changes needed!
+
+#### Step 4: OAuth Flow Implementation
+
+**A. Create OAuth Initiation Endpoint** (`functions/api/auth/google.ts`)
+- Redirect to Google OAuth with correct scopes
+- Include state parameter for CSRF protection
+
+**B. Create OAuth Callback Endpoint** (`functions/api/auth/google/callback.ts`)
+- Exchange code for tokens
+- Get user info (email, name, google_id)
+- Check if user exists
+- If new: Create user, generate session
+- If existing: Update last_login, generate session
+- Return session token + user info to client
+
+**C. Client-Side DEK Handling**
+- On successful OAuth callback:
+  - Check localStorage for existing DEK
+  - If none: Generate new DEK
+  - Derive encryption key from verified Google email (PBKDF2)
+  - Encrypt DEK backup
+  - Send encrypted backup to server
+  - Store DEK in localStorage
+
+**D. Update Login UI** (`src/pages/LoginPage.tsx`)
+- Add "Sign in with Google" button
+- Use shadcn/ui Button with Google icon
+- Handle OAuth redirect flow
+- Show loading state during OAuth
+
+#### Step 5: Account Linking
+Handle case where user has both email/password and OAuth:
+- Check email match
+- Allow linking accounts
+- Preserve existing encrypted_dek for password users
+- Store oauth_provider and oauth_id
+
+#### Step 6: Testing Checklist
+- [ ] OAuth initiation redirects correctly
+- [ ] Callback handles successful auth
+- [ ] DEK generated and encrypted correctly
+- [ ] Email-derived key works consistently
+- [ ] New device recovery works
+- [ ] Account linking works (same email)
+- [ ] Session tokens generated properly
+- [ ] Encryption/decryption works after OAuth login
+- [ ] Logout clears OAuth session
+
+#### Step 7: Security Considerations
+- Validate state parameter (CSRF protection)
+- Verify OAuth token signature
+- Use HTTPS in production (Cloudflare handles this)
+- Store client secret securely (use Cloudflare Secrets)
+- Implement rate limiting on OAuth endpoints
+- Log OAuth attempts for security monitoring
+
+### Files to Create/Modify
+
+**New Files:**
+- `functions/api/auth/google.ts` - OAuth initiation
+- `functions/api/auth/google/callback.ts` - OAuth callback handler
+- `src/lib/oauth.ts` - Client-side OAuth utilities
+- `src/lib/email-kek.ts` - Email-derived key generation
+
+**Files to Update:**
+- `src/pages/LoginPage.tsx` - Add Google button
+- `src/contexts/AuthContext.tsx` - Handle OAuth login flow
+- `functions/lib/schemas.ts` - OAuth response schemas
+- `wrangler.toml` - Add environment variables
+
+### Estimated Time
+4-6 hours total:
+- Google Console setup: 30 minutes
+- Backend OAuth endpoints: 2 hours
+- Frontend integration: 1.5 hours
+- Email-derived encryption: 1 hour
+- Testing: 1 hour
 
 ---
 
@@ -513,16 +730,19 @@ Core AI coaching features implemented:
 10. **Client-side encryption** - Zero-knowledge architecture
 11. **Secret note in user table** - One note per user, simpler than separate table
 12. **Manual save for secret note** - User has control over when data is synced
+13. **Completion tracking without metadata** - Track timestamps only, no dates/priorities (Phase 4)
+14. **Email-derived encryption for OAuth** - Derive KEK from verified Google email for zero-knowledge (Phase 5 planned)
 
 ### To Decide
 1. ~~Should we support passphrase migration for existing users?~~ N/A (never had passphrase system in production)
-2. Email verification: required immediately or grace period?
-3. Session token refresh: automatic or require re-login?
-4. OAuth: Link to existing accounts or force separate?
-5. AI Coach: Which Claude model to use? (Likely Claude 3.5 Sonnet)
-6. Pricing model: Free tier limits?
-7. Todo categories/tags: Encrypted separately or part of todo data?
-8. Sharing: How to handle encrypted data sharing between users?
+2. **Domain name selection** - Need to pick and register before OAuth setup (checked: done.ai is taken)
+3. Email verification: required immediately or grace period?
+4. Session token refresh: automatic or require re-login?
+5. OAuth: Link to existing accounts or force separate? → **DECIDED: Allow linking by email**
+6. AI Coach: Which Claude model to use? (Likely Claude 3.5 Sonnet)
+7. Pricing model: Free tier limits?
+8. Todo categories/tags: Encrypted separately or part of todo data?
+9. Sharing: How to handle encrypted data sharing between users?
 
 ---
 
@@ -555,6 +775,16 @@ Core AI coaching features implemented:
 - [x] Cloudflare AI integration successful
 - [x] All E2E tests passing
 - [x] Code quality improved (useAuthenticatedApi hook)
+
+### Phase 4 Complete ✅ (Productivity Tracking)
+- [x] Completion timestamp tracking implemented
+- [x] Stats API endpoint with metrics calculation
+- [x] Smart streak calculation (consecutive days)
+- [x] ProductivityStats component with 4-grid layout
+- [x] Motivational messages for streaks
+- [x] Dashboard integration successful
+- [x] No added complexity (no dates/priorities)
+- [x] Wrangler v4 updated
 
 ### MVP Ready When:
 - [x] Users can register and login ✅
@@ -602,7 +832,17 @@ Core AI coaching features implemented:
 ## 🔄 Last Updated
 2025-10-26
 
-### Recent Updates (2025-10-26)
+### Recent Updates (2025-10-26 - Session 2)
+- ✅ Completed Phase 4: Productivity Tracking
+- ✅ Added completion timestamp tracking (`completed_at` column)
+- ✅ Created stats API endpoint with smart streak calculation
+- ✅ Built ProductivityStats component with beautiful 4-grid UI
+- ✅ Integrated stats into dashboard
+- ✅ Updated Wrangler to v4.45.0
+- ✅ Documented Phase 5 (Google OAuth) implementation plan
+- ✅ Explored domain options (done.ai is taken)
+
+### Recent Updates (2025-10-26 - Session 1)
 - ✅ Completed Phase 3: AI-Assisted Todo Creation
 - ✅ Implemented interview-style AI coaching for todo creation
 - ✅ Added duplicate detection and clarifying questions
@@ -610,9 +850,8 @@ Core AI coaching features implemented:
 - ✅ Created `useAuthenticatedApi` hook to eliminate code duplication
 - ✅ Removed AI joke proof-of-concept feature
 - ✅ Added comprehensive E2E test suite for AI features
-- ✅ Updated WORKPLAN.md with Phase 3 completion and new Phase 4 (Productivity Tracking)
 
-### Recent Updates (Earlier in 2025-10-26)
+### Earlier Updates (2025-10-26)
 - ✅ Completed Phase 2: End-to-End Encryption
 - ✅ Implemented two-tier encryption (DEK/KEK)
 - ✅ Added encrypted todo list with full CRUD
