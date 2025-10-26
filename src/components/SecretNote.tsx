@@ -1,44 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { useAuth } from '../contexts/AuthContext'
+import { useAuthenticatedApi } from '../hooks/useAuthenticatedApi'
 import { encryptData, decryptData } from '../lib/crypto'
 
 export default function SecretNote() {
   const { encryptionKey } = useAuth()
+  const { apiCall } = useAuthenticatedApi()
   const [noteText, setNoteText] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [joke, setJoke] = useState<string | null>(null)
-  const [isGeneratingJoke, setIsGeneratingJoke] = useState(false)
-
-  // Helper to get session token
-  const getSessionToken = () => localStorage.getItem('coach_session_token')
-
-  // Helper to make authenticated API calls
-  const apiCall = async (url: string, options: RequestInit = {}) => {
-    const sessionToken = getSessionToken()
-    if (!sessionToken) {
-      throw new Error('Not authenticated')
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.details || errorData.error || 'Request failed')
-    }
-
-    return response.json()
-  }
 
   // Fetch and decrypt note on mount
   useEffect(() => {
@@ -98,27 +71,6 @@ export default function SecretNote() {
     }
   }
 
-  const generateJoke = async () => {
-    setIsGeneratingJoke(true)
-    setError(null)
-    setJoke(null)
-
-    try {
-      const data = await apiCall('/api/ai-joke', {
-        method: 'POST',
-      })
-
-      setJoke(data.joke)
-      console.log('✓ AI joke generated:', data.joke)
-      console.log('  Model:', data.model)
-    } catch (err) {
-      console.error('Failed to generate joke:', err)
-      setError('Failed to generate joke. Please try again.')
-    } finally {
-      setIsGeneratingJoke(false)
-    }
-  }
-
   if (!encryptionKey) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -166,36 +118,14 @@ export default function SecretNote() {
             )}
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              onClick={generateJoke}
-              disabled={isGeneratingJoke}
-              size="sm"
-              variant="outline"
-            >
-              {isGeneratingJoke ? 'Generating...' : '😂 Get AI Joke'}
-            </Button>
-            <Button
-              onClick={saveNote}
-              disabled={isSaving}
-              size="sm"
-            >
-              {isSaving ? 'Saving...' : 'Save Note'}
-            </Button>
-          </div>
+          <Button
+            onClick={saveNote}
+            disabled={isSaving}
+            size="sm"
+          >
+            {isSaving ? 'Saving...' : 'Save Note'}
+          </Button>
         </div>
-
-        {joke && (
-          <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">😂</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium mb-1">AI Joke</p>
-                <p className="text-sm">{joke}</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded">
           🔒 This note is encrypted with your password before being saved. Even the server cannot read it.

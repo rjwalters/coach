@@ -24,6 +24,7 @@
     "test:ai-joke:e2e": "node scripts/test-ai-joke-e2e.mjs",
     "test:ai-usage": "node scripts/test-ai-usage-tracking.mjs",
     "test:ai-usage:e2e": "node scripts/test-ai-usage-e2e.mjs",
+    "test:ai-todo:e2e": "node scripts/test-ai-todo-e2e.mjs",
     "test:verify": "npm run test:browser",
     "pages:dev": "wrangler pages dev --proxy=5173 --compatibility-date=2024-01-01",
     "pages:deploy": "npm run build && wrangler pages deploy ./dist",
