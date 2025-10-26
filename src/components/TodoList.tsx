@@ -16,6 +16,7 @@ interface EncryptedTodo {
   id: string
   user_id: string
   encrypted_data: string
+  completed_at: number | null
   created_at: number
   updated_at: number
 }
@@ -216,6 +217,7 @@ export default function TodoList() {
     if (!todo || !encryptionKey) return
 
     const updatedTodo = { ...todo, completed: !todo.completed }
+    const completed_at = updatedTodo.completed ? Date.now() : null
     setError(null)
 
     // Optimistic update
@@ -226,10 +228,10 @@ export default function TodoList() {
 
       await apiCall('/api/todos', {
         method: 'PUT',
-        body: JSON.stringify({ id, encrypted_data }),
+        body: JSON.stringify({ id, encrypted_data, completed_at }),
       })
 
-      console.log('✓ Todo updated:', updatedTodo.text)
+      console.log('✓ Todo updated:', updatedTodo.text, completed_at ? `(completed at ${new Date(completed_at).toLocaleString()})` : '(uncompleted)')
     } catch (err) {
       // Revert on error
       setTodos(todos.map(t => t.id === id ? todo : t))

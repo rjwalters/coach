@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import TodoList from '../components/TodoList'
 import CoachPanel from '../components/CoachPanel'
 import SecretNote from '../components/SecretNote'
+import ProductivityStats from '../components/ProductivityStats'
 import ThemeToggle from '../components/ThemeToggle'
 
 export default function DashboardPage() {
@@ -83,7 +84,8 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
+            <ProductivityStats />
             <CoachPanel />
           </div>
         </div>

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   encrypted_data TEXT NOT NULL,
+  completed_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -81,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_verification_tokens_user ON email_verification_to
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_user ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
 CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at);
+CREATE INDEX IF NOT EXISTS idx_todos_completed_at ON todos(completed_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_user_id ON ai_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_model ON ai_usage(model);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_created_at ON ai_usage(created_at);

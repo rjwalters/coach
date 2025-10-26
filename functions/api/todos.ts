@@ -9,6 +9,7 @@ interface Todo {
   id: string
   user_id: string
   encrypted_data: string
+  completed_at: number | null
   created_at: number
   updated_at: number
 }
@@ -102,13 +103,14 @@ export async function onRequestPost(context: { env: Env; request: Request }) {
     const now = Date.now()
 
     await DB.prepare(
-      'INSERT INTO todos (id, user_id, encrypted_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(id, userId, encrypted_data, now, now).run()
+      'INSERT INTO todos (id, user_id, encrypted_data, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, userId, encrypted_data, null, now, now).run()
 
     const newTodo = {
       id,
       user_id: userId,
       encrypted_data,
+      completed_at: null,
       created_at: now,
       updated_at: now
     }
@@ -143,9 +145,10 @@ export async function onRequestPut(context: { env: Env; request: Request }) {
     const body = await context.request.json() as {
       id: string
       encrypted_data: string
+      completed_at?: number | null
     }
 
-    const { id, encrypted_data } = body
+    const { id, encrypted_data, completed_at } = body
 
     if (!id || !encrypted_data) {
       return new Response(
@@ -158,8 +161,8 @@ export async function onRequestPut(context: { env: Env; request: Request }) {
 
     // Update only if user owns this todo
     const result = await DB.prepare(
-      'UPDATE todos SET encrypted_data = ?, updated_at = ? WHERE id = ? AND user_id = ?'
-    ).bind(encrypted_data, now, id, userId).run()
+      'UPDATE todos SET encrypted_data = ?, completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?'
+    ).bind(encrypted_data, completed_at ?? null, now, id, userId).run()
 
     if (!result.success || result.meta.changes === 0) {
       return new Response(
@@ -172,6 +175,7 @@ export async function onRequestPut(context: { env: Env; request: Request }) {
       id,
       user_id: userId,
       encrypted_data,
+      completed_at: completed_at ?? null,
       updated_at: now
     }
 
