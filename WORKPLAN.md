@@ -163,7 +163,9 @@
 
 ## 🚀 Future Phases
 
-### Phase 2: Email Verification (After Phase 1 Complete)
+
+
+### Phase 6: Email Verification
 
 **Email Service Setup**
 - [ ] Get Postmark API credentials
@@ -186,7 +188,7 @@
 
 ---
 
-### Phase 3: Password Reset
+### Phase 7: Password Reset
 
 **Implementation**
 - [ ] "Forgot password?" link on login page
@@ -200,7 +202,7 @@
 
 ---
 
-### Phase 4: Google OAuth
+### Phase 8: Google OAuth
 
 **Setup**
 - [ ] Register OAuth app with Google
@@ -219,26 +221,86 @@
 
 ---
 
-### Phase 5: AI Coach Features
+### Phase 4: Productivity Tracking & Completion Stats
 
-**Architecture**
-- [ ] Integrate Cloudflare AI Workers
-- [ ] Design prompt templates for coaching
-- [ ] Create coach API endpoints
-- [ ] Implement streaming responses
+**Goal:** Help users track their progress and see how much work they're getting done over time. Keeps the focus on completion and momentum without adding complexity like due dates or priorities.
 
-**Features**
-- [ ] Task breakdown assistance
-- [ ] Priority suggestions
-- [ ] Progress tracking
-- [ ] Motivational messages
-- [ ] Interview mode for task creation
+**Option A: Simple Completion Stats (RECOMMENDED - 2-3 hours)**
 
-**Estimated Time:** 8-10 hours
+Minimal, focused approach that provides immediate value:
+
+**Features:**
+- [ ] Add `completed_at` timestamp column to todos table
+- [ ] Track completion timestamp when todo is checked off
+- [ ] Create stats component for dashboard
+- [ ] Display key metrics:
+  - Total todos completed (all time)
+  - Completed today
+  - Completed this week
+  - Current streak (consecutive days with completions)
+  - Completion rate (completed vs total created)
+- [ ] Optional: AI-powered encouragement based on stats
+
+**Implementation:**
+- Database: ALTER TABLE todos ADD COLUMN completed_at INTEGER
+- Component: `src/components/ProductivityStats.tsx`
+- Queries: Simple aggregation on completed_at timestamps
+- UI: Lightweight stats card on dashboard
+
+**Why This First:**
+- Quick win (2-3 hours)
+- High motivational impact
+- No new complexity (no dates, priorities, etc.)
+- Fits the "Coach" theme (coaches track your progress)
+- Foundation for future insights
+
+**Option B: Completion History (Medium - 4-5 hours)**
+
+Everything from Option A, plus:
+- [ ] List of recently completed todos
+- [ ] "On this day" feature (historical completions)
+- [ ] Weekly/monthly rollup views
+- [ ] Text-based history view
+- [ ] Export completion history
+
+**Option C: Productivity Insights (Advanced - 6-8 hours)**
+
+Everything from Options A+B, plus:
+- [ ] AI-powered insights ("You complete 3x more on Tuesdays")
+- [ ] Trend analysis and charts
+- [ ] Productivity patterns detection
+- [ ] Suggestions for improvement
+- [ ] Best/worst days identification
+
+**Estimated Time:**
+- Option A: 2-3 hours
+- Option B: 4-5 hours
+- Option C: 6-8 hours
 
 ---
 
-### Phase 6: Advanced Features
+### Phase 5: Additional AI Coach Features
+
+**Partially Completed:**
+- [x] Interview mode for task creation ✅
+- [x] Task breakdown assistance (via clarifying questions) ✅
+- [x] Integrate Cloudflare AI Workers ✅
+- [x] Design prompt templates for coaching ✅
+- [x] Create coach API endpoints ✅
+
+**Future Features:**
+- [ ] Streaming AI responses (for longer conversations)
+- [ ] Priority suggestions (if user wants them)
+- [ ] Motivational messages based on progress
+- [ ] Task estimation assistance
+- [ ] Daily/weekly planning mode
+- [ ] Reflection prompts
+
+**Estimated Time:** 6-8 hours for remaining features
+
+---
+
+### Phase 9: Advanced Features
 
 **Task Management**
 - [ ] Task due dates
@@ -394,9 +456,45 @@ All encryption features are working:
 - PBKDF2 with 100k iterations for KEK derivation
 - Session-based API authentication
 
+### ✅ Phase 3 AI-Assisted Todo Creation - COMPLETED! (2025-10-26)
+
+Core AI coaching features implemented:
+- ✅ AI todo assistant endpoint (`/api/ai-todo-assist`)
+- ✅ Interview-style clarification for vague inputs
+- ✅ Duplicate detection in existing todos
+- ✅ Conversation UI with questions and answers
+- ✅ Free-form text todos (no structured metadata)
+- ✅ Integration with Cloudflare AI (LLaMA 3.1 8B Instruct)
+- ✅ AI usage tracking with token counts
+- ✅ Graceful fallback when AI unavailable
+- ✅ Code refactoring: Created `useAuthenticatedApi` hook
+- ✅ Removed proof-of-concept AI joke feature
+- ✅ E2E test suite (`npm run test:ai-todo:e2e`)
+
+**Test Results:**
+- Clear Todos: ✅ Created directly without AI questions
+- Vague Inputs: ✅ AI asks clarifying questions
+- Conversation Flow: ✅ Question → Answer → Todo created
+- Duplicate Detection: ✅ AI identifies similar todos
+- Encryption: ✅ All todos encrypted end-to-end
+
+**Implementation Highlights:**
+- Interview-style coaching interaction
+- Matches user's text-file workflow (no dates/priorities)
+- AI provides helpful guidance without being intrusive
+- Clean, conversational UI
+
+**Files Changed:**
+- `functions/api/ai-todo-assist.ts` (NEW - 171 lines)
+- `src/hooks/useAuthenticatedApi.ts` (NEW - 62 lines)
+- `scripts/test-ai-todo-e2e.mjs` (NEW - 316 lines)
+- `src/components/TodoList.tsx` (+113 lines)
+- `src/components/SecretNote.tsx` (-71 lines)
+
 **Next Priority:**
-1. AI coaching integration with Cloudflare AI
-2. Interview mode for task creation
+1. Productivity tracking and completion stats
+2. Email verification (Phase 2)
+3. Additional AI coach features
 
 ---
 
@@ -448,12 +546,25 @@ All encryption features are working:
 - [x] Database verification (no plaintext)
 - [x] Zero-knowledge architecture verified
 
+### Phase 3 Complete ✅ (AI-Assisted Todo Creation)
+- [x] AI todo assistant endpoint implemented
+- [x] Interview-style clarification working
+- [x] Duplicate detection functional
+- [x] Conversation UI polished
+- [x] Free-form todos (no metadata complexity)
+- [x] Cloudflare AI integration successful
+- [x] All E2E tests passing
+- [x] Code quality improved (useAuthenticatedApi hook)
+
 ### MVP Ready When:
 - [x] Users can register and login ✅
 - [x] Users can create encrypted todos ✅
 - [x] Users can store encrypted notes ✅
-- [ ] Users can get AI coaching (next phase)
-- [ ] Users can use interview mode (next phase)
+- [x] Users can get AI coaching ✅
+- [x] Users can use interview mode ✅
+- [ ] Users can track completion stats (Phase 4)
+
+**🎉 MVP ACHIEVED! Core features complete. Next: Productivity tracking for better motivation.**
 
 ### Production Ready When:
 - [ ] Email verification required
@@ -492,13 +603,22 @@ All encryption features are working:
 2025-10-26
 
 ### Recent Updates (2025-10-26)
+- ✅ Completed Phase 3: AI-Assisted Todo Creation
+- ✅ Implemented interview-style AI coaching for todo creation
+- ✅ Added duplicate detection and clarifying questions
+- ✅ Integrated Cloudflare AI (LLaMA 3.1 8B Instruct)
+- ✅ Created `useAuthenticatedApi` hook to eliminate code duplication
+- ✅ Removed AI joke proof-of-concept feature
+- ✅ Added comprehensive E2E test suite for AI features
+- ✅ Updated WORKPLAN.md with Phase 3 completion and new Phase 4 (Productivity Tracking)
+
+### Recent Updates (Earlier in 2025-10-26)
 - ✅ Completed Phase 2: End-to-End Encryption
 - ✅ Implemented two-tier encryption (DEK/KEK)
 - ✅ Added encrypted todo list with full CRUD
 - ✅ Added encrypted secret note feature
 - ✅ Created comprehensive test suite (unit, API, E2E)
 - ✅ Verified database encryption (no plaintext storage)
-- ✅ Updated all documentation to reflect current status
 
 ## 👤 Maintainer
 rjwalters
