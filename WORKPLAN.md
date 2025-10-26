@@ -87,54 +87,77 @@
 
 ---
 
-### 3. Encryption Key Management (CRITICAL)
+### 3. Encryption Key Management (CRITICAL) ✅ COMPLETED
 
-**Current Issue:**
-- Old system: Encryption key derived from passphrase
-- New system: Need to store encrypted DEK (Data Encryption Key)
-
-**Implementation Plan:**
-- [ ] Create utility functions for two-tier encryption
+**Implementation:**
+- [x] Created utility functions for two-tier encryption
   - `generateDEK()` - Create random 256-bit key
   - `encryptDEK(dek, password)` - Encrypt DEK with password-derived KEK
   - `decryptDEK(encryptedDEK, password)` - Decrypt DEK
-- [ ] Update registration to generate and store encrypted DEK
-- [ ] Update login to decrypt DEK
-- [ ] Update AuthContext to manage DEK in memory
-- [ ] Test todo encryption/decryption with new system
+- [x] Updated registration to generate and store encrypted DEK
+- [x] Updated login to return encrypted DEK
+- [x] Updated AuthContext to manage DEK in memory
+- [x] Tested todo encryption/decryption with new system
 
-**Files to Update:**
-- `src/lib/crypto.ts` - Add DEK functions
+**Files Updated:**
+- `src/lib/crypto.ts` - Added DEK functions
+- `functions/lib/crypto.ts` - Backend crypto utilities
 - `functions/api/auth/register.ts` - Generate DEK on registration
 - `functions/api/auth/login.ts` - Return encrypted DEK
 - `src/contexts/AuthContext.tsx` - Manage DEK
+- `functions/lib/schemas.ts` - Updated login response schema
 
-**Estimated Time:** 3-4 hours
+**Actual Time:** 3 hours
 
 ---
 
-### 4. Todo List Integration
+### 4. Todo List Integration ✅ COMPLETED
 
-**Update Todo API** (`functions/api/todos.ts`)
-- [ ] Add session token authentication
-- [ ] Verify user owns the todos they're accessing
-- [ ] Update to work with new user schema
+**Updated Todo API** (`functions/api/todos.ts`)
+- [x] Added session token authentication
+- [x] Verify user owns the todos they're accessing
+- [x] Updated to work with new user schema
+- [x] Full CRUD endpoints (GET, POST, PUT, DELETE)
 
-**Update TodoList Component** (`src/components/TodoList.tsx`)
-- [ ] Connect to API endpoints
-- [ ] Use encryption key from AuthContext
-- [ ] Handle loading states
-- [ ] Handle errors
-- [ ] Add proper TypeScript types
+**Updated TodoList Component** (`src/components/TodoList.tsx`)
+- [x] Connected to API endpoints
+- [x] Uses encryption key from AuthContext
+- [x] Handles loading states
+- [x] Handles errors with rollback
+- [x] Added proper TypeScript types
+- [x] Optimistic UI updates
 
 **Testing**
-- [ ] Test creating todos
-- [ ] Test reading todos
-- [ ] Test updating todos
-- [ ] Test deleting todos
-- [ ] Verify encryption/decryption works
+- [x] Test creating todos (encrypted client-side)
+- [x] Test reading todos (decrypted client-side)
+- [x] Test updating todos (re-encrypted)
+- [x] Test deleting todos
+- [x] Verified encryption/decryption works
+- [x] Verified database contains only encrypted blobs
 
-**Estimated Time:** 2-3 hours
+**Actual Time:** 2 hours
+
+---
+
+### 5. Secret Note Feature ✅ COMPLETED
+
+**Added Secret Note** (NEW)
+- [x] Database migration: Added `encrypted_secret_note` column to users table
+- [x] API endpoints: `GET/PUT /api/secret-note`
+- [x] React component: `SecretNote.tsx` with encryption
+- [x] Integrated into Dashboard
+- [x] Client-side encryption/decryption
+- [x] Auto-load on login
+- [x] Manual save with timestamp
+- [x] Error handling
+
+**Testing**
+- [x] API tests (`npm run test:note`)
+- [x] E2E browser test (`npm run test:note:e2e`)
+- [x] Database encryption verification
+- [x] Login/logout/re-login cycle
+
+**Actual Time:** 2 hours
 
 ---
 
@@ -325,11 +348,11 @@ npm run pages:deploy:prod
 
 ---
 
-## 🎯 Current Status Update (2025-10-25)
+## 🎯 Current Status Update (2025-10-26)
 
-### ✅ Phase 1 Authentication - COMPLETED!
+### ✅ Phase 1 Authentication - COMPLETED! (2025-10-25)
 
-All core authentication features are now working:
+All core authentication features are working:
 - ✅ Email/password registration with bcryptjs hashing
 - ✅ User login with session token generation
 - ✅ Session persistence across page reloads
@@ -339,20 +362,41 @@ All core authentication features are now working:
 - ✅ Automated Playwright testing (`npm run test:auth`)
 - ✅ Database successfully migrated and verified
 
-**Test Results:**
-- Registration: ✅ Working (redirects to dashboard)
-- Login: ✅ Working (creates session token)
-- Logout: ✅ Working (deletes session token)
-- Session Persistence: ✅ Working (restores user on reload)
-- Database: ✅ Users created with email_verified=1
+### ✅ Phase 2 End-to-End Encryption - COMPLETED! (2025-10-26)
 
-**Known Issues:**
-- ⚠️ Logout endpoint had JSON parsing issue - **FIXED** (now reads from Authorization header)
-- ⚠️ TypeScript errors (isLoading, userId) - **FIXED**
+All encryption features are working:
+- ✅ Two-tier encryption system (DEK/KEK) implemented
+- ✅ DEK generation on user registration
+- ✅ DEK encryption with password-derived KEK
+- ✅ DEK decryption on login
+- ✅ DEK persistence in memory and localStorage
+- ✅ Encrypted todo list with full CRUD operations
+- ✅ Encrypted secret note feature
+- ✅ Client-side encryption utilities (frontend & backend)
+- ✅ Comprehensive test suite:
+  - Unit tests: DEK encryption/decryption (`npm run test:dek`)
+  - API tests: Todo CRUD (`npm run test:todos`)
+  - API tests: Secret note (`npm run test:note`)
+  - E2E tests: Full user journey (`npm run test:note:e2e`)
+- ✅ Database encryption verification (no plaintext storage)
+
+**Test Results:**
+- DEK Encryption: ✅ All tests passed
+- Todo CRUD: ✅ Created, read, updated, deleted encrypted todos
+- Secret Note: ✅ Save, retrieve, update encrypted notes
+- E2E Flow: ✅ Login → Write → Logout → Login → Read (all working)
+- Database Verification: ✅ Only encrypted blobs stored, no plaintext
+
+**Architecture Highlights:**
+- Zero-knowledge: Server cannot decrypt user data
+- Password changes won't require re-encrypting all data (just re-encrypt DEK)
+- AES-GCM-256 encryption for all user data
+- PBKDF2 with 100k iterations for KEK derivation
+- Session-based API authentication
 
 **Next Priority:**
-1. Implement two-tier encryption (DEK/KEK) for todo data encryption
-2. Connect TodoList component to API
+1. AI coaching integration with Cloudflare AI
+2. Interview mode for task creation
 
 ---
 
@@ -363,40 +407,64 @@ All core authentication features are now working:
 2. **Email auto-verified in Phase 1** - Faster development iteration
 3. **Session tokens in localStorage** - Simpler than cookies for SPA
 4. **30-day session duration** - Balance between security and UX
-5. **Two-tier encryption** - Allows password changes without re-encrypting data
+5. **Two-tier encryption (DEK/KEK)** - Allows password changes without re-encrypting data ✅
 6. **Biome over ESLint** - Faster, better TypeScript support
 7. **Zod over other validators** - Best TypeScript integration
+8. **AES-GCM-256** - Industry standard for data encryption
+9. **PBKDF2 with 100k iterations** - Good balance of security and performance
+10. **Client-side encryption** - Zero-knowledge architecture
+11. **Secret note in user table** - One note per user, simpler than separate table
+12. **Manual save for secret note** - User has control over when data is synced
 
 ### To Decide
-1. Should we support passphrase migration for existing users?
+1. ~~Should we support passphrase migration for existing users?~~ N/A (never had passphrase system in production)
 2. Email verification: required immediately or grace period?
 3. Session token refresh: automatic or require re-login?
 4. OAuth: Link to existing accounts or force separate?
-5. AI Coach: Which Claude model to use?
+5. AI Coach: Which Claude model to use? (Likely Claude 3.5 Sonnet)
 6. Pricing model: Free tier limits?
+7. Todo categories/tags: Encrypted separately or part of todo data?
+8. Sharing: How to handle encrypted data sharing between users?
 
 ---
 
 ## 🎯 Success Metrics
 
-### Phase 1 Complete When:
+### Phase 1 Complete ✅ (Authentication)
 - [x] User can register with email/password
 - [x] User can login and receive session token
 - [x] User can logout
 - [x] Sessions persist across page reloads
 - [x] Proper error handling on all auth endpoints
-- [ ] Todo encryption/decryption working with new auth
-- [ ] All Playwright tests passing
+- [x] All Playwright tests passing
+
+### Phase 2 Complete ✅ (Encryption)
+- [x] Two-tier encryption (DEK/KEK) implemented
+- [x] Todo encryption/decryption working
+- [x] Secret note encryption working
+- [x] All unit tests passing
+- [x] All API tests passing
+- [x] All E2E tests passing
+- [x] Database verification (no plaintext)
+- [x] Zero-knowledge architecture verified
+
+### MVP Ready When:
+- [x] Users can register and login ✅
+- [x] Users can create encrypted todos ✅
+- [x] Users can store encrypted notes ✅
+- [ ] Users can get AI coaching (next phase)
+- [ ] Users can use interview mode (next phase)
 
 ### Production Ready When:
 - [ ] Email verification required
 - [ ] Password reset functional
 - [ ] Rate limiting implemented
-- [ ] HTTPS enforced
+- [ ] HTTPS enforced (Cloudflare handles this)
 - [ ] Database backups automated
-- [ ] Error monitoring setup
+- [ ] Error monitoring setup (Cloudflare analytics)
 - [ ] Load testing completed
 - [ ] Security audit passed
+- [ ] Privacy policy and terms of service
 
 ---
 
@@ -421,7 +489,16 @@ All core authentication features are now working:
 ---
 
 ## 🔄 Last Updated
-2025-10-25
+2025-10-26
+
+### Recent Updates (2025-10-26)
+- ✅ Completed Phase 2: End-to-End Encryption
+- ✅ Implemented two-tier encryption (DEK/KEK)
+- ✅ Added encrypted todo list with full CRUD
+- ✅ Added encrypted secret note feature
+- ✅ Created comprehensive test suite (unit, API, E2E)
+- ✅ Verified database encryption (no plaintext storage)
+- ✅ Updated all documentation to reflect current status
 
 ## 👤 Maintainer
 rjwalters

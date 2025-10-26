@@ -13,7 +13,22 @@
       "Bash(curl:*)",
       "Bash(chmod:*)",
       "Bash(node scripts/verify-console.mjs:*)",
-      "Bash(node scripts/test-theme-toggle.mjs:*)"
+      "Bash(node scripts/test-theme-toggle.mjs:*)",
+      "Bash(npm run db:migrate:local:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(npm run pages:dev:*)",
+      "Bash(node scripts/test-auth-flow.mjs:*)",
+      "Bash(pkill:*)",
+      "Read(//private/tmp/**)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(node /Users/rwalters/GitHub/coach/scripts/test-dek-encryption.mjs:*)",
+      "Bash(node:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(npm run test:ai-joke:e2e:*)",
+      "Bash(npm run test:ai-usage:*)",
+      "Bash(npm run test:ai-usage:e2e:*)"
     ],
     "deny": [],
     "ask": []

@@ -67,6 +67,7 @@ export const loginResponseSchema = z.object({
     updated_at: z.number(),
   }),
   session_token: z.string().uuid(),
+  encrypted_dek: z.string().nullable(),
 })
 
 export type LoginResponse = z.infer<typeof loginResponseSchema>
@@ -105,3 +106,50 @@ export function formatZodError(error: z.ZodError): ErrorResponse {
     details: error.errors[0].message,
   }
 }
+
+// AI usage schemas
+export const aiUsageSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  model: z.string(),
+  prompt_tokens: z.number().int().min(0),
+  completion_tokens: z.number().int().min(0),
+  total_tokens: z.number().int().min(0),
+  endpoint: z.string(),
+  created_at: z.number(),
+})
+
+export type AIUsage = z.infer<typeof aiUsageSchema>
+
+export const createAIUsageSchema = z.object({
+  model: z.string(),
+  prompt_tokens: z.number().int().min(0),
+  completion_tokens: z.number().int().min(0),
+  total_tokens: z.number().int().min(0),
+  endpoint: z.string(),
+})
+
+export type CreateAIUsage = z.infer<typeof createAIUsageSchema>
+
+export const aiUsageStatsSchema = z.object({
+  total_requests: z.number().int(),
+  total_prompt_tokens: z.number().int(),
+  total_completion_tokens: z.number().int(),
+  total_tokens: z.number().int(),
+  by_model: z.array(z.object({
+    model: z.string(),
+    requests: z.number().int(),
+    prompt_tokens: z.number().int(),
+    completion_tokens: z.number().int(),
+    total_tokens: z.number().int(),
+  })),
+  by_endpoint: z.array(z.object({
+    endpoint: z.string(),
+    requests: z.number().int(),
+    prompt_tokens: z.number().int(),
+    completion_tokens: z.number().int(),
+    total_tokens: z.number().int(),
+  })),
+})
+
+export type AIUsageStats = z.infer<typeof aiUsageStatsSchema>

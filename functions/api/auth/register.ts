@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import * as bcrypt from 'bcryptjs'
 import { registerRequestSchema, formatZodError } from '../../lib/schemas'
+import { generateDEK, encryptDEK } from '../../lib/crypto'
 
 interface Env {
   DB: D1Database
@@ -33,6 +34,12 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
     // Hash password
     const password_hash = await bcrypt.hash(password, 10)
 
+    // Generate DEK (Data Encryption Key) for encrypting user data
+    const dek = await generateDEK()
+
+    // Encrypt DEK with password-derived KEK (Key Encryption Key)
+    const encrypted_dek = await encryptDEK(dek, password)
+
     // Generate user ID
     const user_id = crypto.randomUUID()
     const now = Date.now()
@@ -40,13 +47,13 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
     // For now, auto-verify email (Phase 1 - skip email confirmation)
     const email_verified = 1
 
-    // Create user
+    // Create user with encrypted_dek
     await DB.prepare(
       `INSERT INTO users
-      (id, email, email_verified, password_hash, created_at, last_login, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`
+      (id, email, email_verified, password_hash, encrypted_dek, created_at, last_login, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(user_id, email, email_verified, password_hash, now, now, now)
+      .bind(user_id, email, email_verified, password_hash, encrypted_dek, now, now, now)
       .run()
 
     // Fetch created user

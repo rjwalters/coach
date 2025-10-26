@@ -64,7 +64,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
       .bind(now, now, user.id)
       .run()
 
-    // Return user data and session token (excluding sensitive fields)
+    // Return user data, session token, and encrypted DEK (excluding sensitive fields)
     const publicUser = {
       id: user.id,
       email: user.email,
@@ -78,6 +78,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
       JSON.stringify({
         user: publicUser,
         session_token: session_token_id,
+        encrypted_dek: user.encrypted_dek, // Client needs this to decrypt DEK with password
       }),
       {
         status: 200,

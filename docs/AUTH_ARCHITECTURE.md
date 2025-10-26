@@ -1,320 +1,450 @@
-# Authentication Architecture
+# Authentication & Encryption Architecture
 
 ## Overview
 
-This document outlines the transition from passphrase-only authentication to a comprehensive email/password + OAuth system with email verification.
+This document outlines the complete authentication and encryption architecture for the Coach app, including email/password authentication, session management, and the two-tier encryption system (DEK/KEK).
 
-## Current System (Passphrase-Only)
+---
 
-### How It Works
-- Users enter a passphrase
-- User ID is derived deterministically from passphrase (PBKDF2)
-- Encryption key is also derived from passphrase
-- No email, no username - just passphrase
-- User can "login" from any device with same passphrase
+## Current Implementation ✅
 
-### Limitations
-- No password recovery
-- No email communication
-- No OAuth support
-- Weak security model
+### Authentication System
 
-## Proposed System (Email/Password + OAuth)
+The Coach app uses **email/password authentication** with **bcryptjs hashing** and **session token management**.
 
-### Authentication Methods
-
-1. **Email + Password** (Primary)
-   - Traditional email/password registration
-   - Email verification required
-   - Password reset via email
-
-2. **Google OAuth** (Future)
-   - Sign in with Google
-   - No password needed
-   - Email auto-verified
-
-### User Registration Flow
+#### User Registration Flow
 
 ```
 1. User enters email + password
-2. Hash password with bcrypt/argon2
-3. Generate verification token (UUID)
-4. Store user in D1 with email_verified=false
-5. Send verification email via Postmark
-6. User clicks link → verify email
-7. Set email_verified=true
-8. User can now login
+2. Validate email format and password strength (min 8 chars)
+3. Hash password with bcryptjs (10 rounds)
+4. Generate random DEK (Data Encryption Key) - 256-bit AES
+5. Encrypt DEK with password-derived KEK (Key Encryption Key)
+6. Generate unique user ID (UUID)
+7. Store in database:
+   - user_id
+   - email
+   - password_hash
+   - encrypted_dek
+   - email_verified=1 (auto-verified in current phase)
+8. Automatically log in user (create session token)
+9. Redirect to dashboard
 ```
 
-### Database Schema Changes
+#### Login Flow
+
+```
+1. User enters email + password
+2. Look up user by email
+3. Verify password hash with bcryptjs.compare()
+4. If valid:
+   a. Generate session token (UUID, 30-day expiration)
+   b. Store session token in database
+   c. Return to client:
+      - session_token
+      - encrypted_dek
+      - user info (email, id, etc.)
+5. Client side:
+   a. Store session_token in localStorage
+   b. Derive KEK from password (PBKDF2, 100k iterations)
+   c. Decrypt DEK with KEK
+   d. Store DEK in memory for session
+   e. Store DEK in localStorage for persistence
+6. Redirect to dashboard
+```
+
+#### Logout Flow
+
+```
+1. Client sends session token to /api/auth/logout
+2. Server deletes session token from database
+3. Client clears:
+   - localStorage (session_token, DEK)
+   - Memory (AuthContext state)
+4. Redirect to login page
+```
+
+#### Session Persistence
+
+```
+1. On app load, check for session_token in localStorage
+2. If found, call /api/auth/me with token
+3. If valid:
+   a. Restore user info
+   b. Restore DEK from localStorage
+   c. User stays logged in
+4. If invalid/expired:
+   a. Clear localStorage
+   b. Redirect to login
+```
+
+---
+
+## Two-Tier Encryption System (DEK/KEK)
+
+### Architecture
+
+The Coach app uses a **zero-knowledge, two-tier encryption** system where:
+- **DEK (Data Encryption Key)**: Random 256-bit AES key used to encrypt user data
+- **KEK (Key Encryption Key)**: Derived from user password, used to encrypt the DEK
+
+### Why Two-Tier?
+
+1. **Password Changes**: Can change password by just re-encrypting DEK, not all user data
+2. **Performance**: Derive KEK once, use DEK (fast) for all data operations
+3. **Security**: Server never has access to DEK in plaintext
+
+### Encryption Flow
+
+#### Registration
+```
+1. Generate random DEK (256-bit AES)
+   crypto.subtle.generateKey('AES-GCM', 256)
+
+2. Generate random salt (16 bytes)
+
+3. Derive KEK from password
+   PBKDF2(password, salt, 100k iterations, SHA-256)
+
+4. Encrypt DEK with KEK
+   AES-GCM-256(DEK, KEK, random IV)
+
+5. Store in database:
+   {
+     salt: [16 bytes],
+     iv: [12 bytes],
+     encryptedDEK: [encrypted DEK bytes]
+   }
+   (encoded as base64 JSON string)
+```
+
+#### Login
+```
+1. Fetch encrypted_dek from database
+
+2. Decode base64 JSON to get:
+   - salt (16 bytes)
+   - iv (12 bytes)
+   - encryptedDEK (encrypted bytes)
+
+3. Derive KEK from password using stored salt
+   PBKDF2(password, salt, 100k iterations, SHA-256)
+
+4. Decrypt DEK with KEK
+   AES-GCM-256-decrypt(encryptedDEK, KEK, iv)
+
+5. Import DEK as CryptoKey
+   crypto.subtle.importKey('raw', dekBytes, 'AES-GCM')
+
+6. Store DEK in memory and localStorage
+```
+
+#### Data Encryption (Todos, Secret Note)
+```
+1. Get DEK from AuthContext
+
+2. Encrypt data
+   a. Generate random IV (12 bytes)
+   b. AES-GCM-256(plaintext, DEK, IV)
+   c. Combine IV + ciphertext
+   d. Encode as base64
+
+3. Send encrypted blob to server
+
+4. Server stores blob as-is (cannot decrypt)
+```
+
+#### Data Decryption
+```
+1. Fetch encrypted blob from server
+
+2. Get DEK from AuthContext
+
+3. Decrypt data
+   a. Decode base64
+   b. Extract IV (first 12 bytes)
+   c. Extract ciphertext (remaining bytes)
+   d. AES-GCM-256-decrypt(ciphertext, DEK, IV)
+   e. Decode UTF-8 to get plaintext
+
+4. Display plaintext to user
+```
+
+---
+
+## Database Schema
 
 ```sql
--- Updated users table
+-- Users table with email/password authentication
 CREATE TABLE users (
-  id TEXT PRIMARY KEY,           -- UUID
-  email TEXT UNIQUE NOT NULL,    -- User email
+  id TEXT PRIMARY KEY,                    -- UUID
+  email TEXT UNIQUE NOT NULL,             -- User email
   email_verified INTEGER NOT NULL DEFAULT 0, -- Boolean (0/1)
-  password_hash TEXT,            -- bcrypt/argon2 hash (nullable for OAuth users)
-  oauth_provider TEXT,           -- 'google' | null
-  oauth_id TEXT,                 -- Google user ID (nullable)
-  created_at INTEGER NOT NULL,
-  last_login INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  password_hash TEXT,                     -- bcryptjs hash (nullable for OAuth users)
+  oauth_provider TEXT,                    -- 'google' | null (future)
+  oauth_id TEXT,                          -- OAuth user ID (nullable)
+  encrypted_dek TEXT,                     -- Encrypted DEK (base64 JSON)
+  encrypted_secret_note TEXT,             -- User's encrypted secret note
+  created_at INTEGER NOT NULL,            -- Unix timestamp
+  last_login INTEGER NOT NULL,            -- Unix timestamp
+  updated_at INTEGER NOT NULL,            -- Unix timestamp
+  CHECK (email_verified IN (0, 1)),
+  CHECK (oauth_provider IS NULL OR oauth_provider IN ('google')),
+  CHECK (password_hash IS NOT NULL OR oauth_provider IS NOT NULL)
 );
 
--- Email verification tokens
-CREATE TABLE email_verification_tokens (
-  id TEXT PRIMARY KEY,           -- UUID token
-  user_id TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  used INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Password reset tokens
-CREATE TABLE password_reset_tokens (
-  id TEXT PRIMARY KEY,           -- UUID token
-  user_id TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  used INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Session tokens (for persistent login)
+-- Session tokens for persistent login (30-day expiration)
 CREATE TABLE session_tokens (
-  id TEXT PRIMARY KEY,           -- UUID token
+  id TEXT PRIMARY KEY,                    -- UUID token
   user_id TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,            -- Unix timestamp
+  created_at INTEGER NOT NULL,            -- Unix timestamp
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Email verification tokens (future phase)
+CREATE TABLE email_verification_tokens (
+  id TEXT PRIMARY KEY,                    -- UUID token
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,            -- Unix timestamp
+  used INTEGER NOT NULL DEFAULT 0,        -- Boolean
+  created_at INTEGER NOT NULL,            -- Unix timestamp
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CHECK (used IN (0, 1))
+);
+
+-- Password reset tokens (future phase)
+CREATE TABLE password_reset_tokens (
+  id TEXT PRIMARY KEY,                    -- UUID token
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,            -- Unix timestamp
+  used INTEGER NOT NULL DEFAULT 0,        -- Boolean
+  created_at INTEGER NOT NULL,            -- Unix timestamp
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CHECK (used IN (0, 1))
+);
+
+-- Todos table with encrypted data
+CREATE TABLE todos (
+  id TEXT PRIMARY KEY,                    -- UUID
+  user_id TEXT NOT NULL,
+  encrypted_data TEXT NOT NULL,           -- Encrypted todo data (base64)
+  created_at INTEGER NOT NULL,            -- Unix timestamp
+  updated_at INTEGER NOT NULL,            -- Unix timestamp
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_id);
+CREATE INDEX idx_session_tokens_user ON session_tokens(user_id);
+CREATE INDEX idx_session_tokens_expires ON session_tokens(expires_at);
 CREATE INDEX idx_verification_tokens_user ON email_verification_tokens(user_id);
 CREATE INDEX idx_reset_tokens_user ON password_reset_tokens(user_id);
-CREATE INDEX idx_session_tokens_user ON session_tokens(user_id);
+CREATE INDEX idx_todos_user_id ON todos(user_id);
+CREATE INDEX idx_todos_created_at ON todos(created_at);
 ```
 
-### Encryption Key Management
+---
 
-**Current:** Encryption key derived from passphrase
-**Problem:** Can't change password without re-encrypting all data
+## API Endpoints
 
-**Solution:** Two-tier encryption
-1. **Master Key**: Stored in database, encrypted with user's password
-2. **Data Encryption Key (DEK)**: Used to encrypt user's todos
+### Authentication
 
-```typescript
-// Registration
-1. Generate random DEK (256-bit)
-2. Derive Key Encryption Key (KEK) from password
-3. Encrypt DEK with KEK → store encrypted DEK in database
-4. Use DEK to encrypt/decrypt todos
+#### `POST /api/auth/register`
+- **Input**: `{ email, password }`
+- **Process**:
+  1. Validate email and password
+  2. Check if user exists
+  3. Hash password (bcryptjs, 10 rounds)
+  4. Generate and encrypt DEK
+  5. Create user in database
+- **Output**: `{ user, message }`
+- **Auto-login**: Yes (calls login endpoint internally)
 
-// Login
-1. Derive KEK from password
-2. Fetch encrypted DEK from database
-3. Decrypt DEK with KEK
-4. Use DEK for data operations
+#### `POST /api/auth/login`
+- **Input**: `{ email, password }`
+- **Process**:
+  1. Look up user by email
+  2. Verify password hash
+  3. Create session token (30-day expiration)
+  4. Update last_login timestamp
+- **Output**: `{ user, session_token, encrypted_dek }`
 
-// Password Change
-1. Derive old KEK from old password
+#### `POST /api/auth/logout`
+- **Input**: Session token in Authorization header
+- **Process**:
+  1. Validate session token
+  2. Delete session from database
+- **Output**: `{ success: true }`
+
+#### `GET /api/auth/me`
+- **Input**: Session token in Authorization header
+- **Process**:
+  1. Validate session token
+  2. Check if expired
+  3. Return user info
+- **Output**: `{ user }`
+
+### Encrypted Data
+
+#### `GET /api/todos`
+- **Auth**: Required (session token)
+- **Output**: Array of encrypted todos
+- **Note**: Server cannot decrypt, returns encrypted blobs
+
+#### `POST /api/todos`
+- **Auth**: Required
+- **Input**: `{ encrypted_data }`
+- **Output**: Created todo (encrypted)
+
+#### `PUT /api/todos`
+- **Auth**: Required
+- **Input**: `{ id, encrypted_data }`
+- **Output**: Updated todo (encrypted)
+
+#### `DELETE /api/todos?id=<id>`
+- **Auth**: Required
+- **Output**: `{ success: true }`
+
+#### `GET /api/secret-note`
+- **Auth**: Required
+- **Output**: `{ encrypted_secret_note }`
+
+#### `PUT /api/secret-note`
+- **Auth**: Required
+- **Input**: `{ encrypted_secret_note }`
+- **Output**: `{ success: true }`
+
+---
+
+## Security Guarantees
+
+### What's Protected ✅
+
+1. **Zero-Knowledge Architecture**
+   - Server never sees plaintext user data
+   - All encryption happens client-side
+   - Database admin cannot read todos or notes
+
+2. **Password Security**
+   - bcryptjs hashing with 10 rounds
+   - Password never transmitted in plaintext
+   - Password only used locally to derive KEK
+
+3. **Encryption Security**
+   - AES-GCM-256 for all data encryption
+   - PBKDF2 with 100k iterations for KEK derivation
+   - Random IV for each encryption operation
+   - Random salt for each user's KEK derivation
+
+4. **Session Security**
+   - 30-day session tokens
+   - Stored in localStorage (acceptable for SPA)
+   - Can be invalidated server-side
+   - Automatic expiration
+
+5. **Data Isolation**
+   - Users can only access their own data
+   - Session token validates ownership
+   - Database foreign keys enforce relationships
+
+### Password Change Flow (Future)
+
+When a user changes their password:
+```
+1. Verify old password
 2. Decrypt DEK with old KEK
 3. Derive new KEK from new password
 4. Re-encrypt DEK with new KEK
-5. Update database
-// No need to re-encrypt todos!
+5. Update encrypted_dek in database
 ```
 
-### Email Service Architecture
+**Important**: All user data (todos, notes) remain encrypted with the same DEK. Only the DEK's encryption changes. This is why we use two-tier encryption!
 
-Following genstack's pattern:
+---
 
-```typescript
-// packages/email/
-├── src/
-│   ├── emailService.ts           # Postmark client wrapper
-│   ├── emailEnv.ts               # Environment config
-│   ├── templates/                # React Email templates
-│   │   ├── auth/
-│   │   │   ├── VerifyEmail.tsx
-│   │   │   ├── WelcomeEmail.tsx
-│   │   │   └── PasswordReset.tsx
-│   │   └── notifications/
-│   │       └── TaskReminder.tsx
-│   ├── compiled/                 # Pre-compiled HTML/text
-│   │   └── auth/
-│   │       ├── verify-email.ts
-│   │       ├── welcome-email.ts
-│   │       └── password-reset.ts
-│   └── index.ts
-└── scripts/
-    └── compileEmails.ts          # Build-time compilation
-```
+## Testing
 
-### API Endpoints
+### Unit Tests
+- `npm run test:dek` - DEK encryption/decryption cycle
 
-```typescript
-// Registration & Verification
-POST /api/auth/register
-  { email, password } → 201 Created + verification email sent
+### API Tests
+- `npm run test:todos` - Todo CRUD with encryption
+- `npm run test:note` - Secret note encryption
 
-GET /api/auth/verify-email?token=xxx
-  → 200 OK (email verified) or 400 Bad Request
+### E2E Tests
+- `npm run test:note:e2e` - Full browser test
+  - Register/login
+  - Write encrypted note
+  - Verify database encryption
+  - Logout
+  - Login again
+  - Verify decryption
 
-POST /api/auth/resend-verification
-  { email } → 200 OK (email sent)
+---
 
-// Login & Logout
-POST /api/auth/login
-  { email, password } → 200 OK + session token
+## Future Enhancements
 
-POST /api/auth/logout
-  { session_token } → 200 OK
+### Planned
+- **Email Verification**: Require email confirmation before access
+- **Password Reset**: Secure password reset with DEK re-encryption
+- **OAuth**: Google OAuth integration
+- **Two-Factor Authentication**: Additional security layer
 
-POST /api/auth/refresh
-  { session_token } → 200 OK + new session token
+### Under Consideration
+- **Account Recovery**: Recovery codes for locked accounts
+- **Key Rotation**: Periodic DEK rotation for enhanced security
+- **Biometric Auth**: Face ID / Touch ID for mobile
+- **Hardware Keys**: WebAuthn support for YubiKey, etc.
 
-// Password Management
-POST /api/auth/request-password-reset
-  { email } → 200 OK (email sent)
+---
 
-POST /api/auth/reset-password
-  { token, new_password } → 200 OK
+## Comparison with Other Systems
 
-POST /api/auth/change-password
-  { old_password, new_password } → 200 OK
+### vs. Standard Authentication (like most apps)
+- **Most apps**: Server can read your data
+- **Coach**: Server cannot read your data (zero-knowledge)
 
-// OAuth (Future)
-GET /api/auth/google
-  → Redirect to Google OAuth
+### vs. Passphrase-Only Systems
+- **Passphrase**: Deterministic, no recovery, limited security
+- **Coach**: Email/password, recovery possible, better UX
 
-GET /api/auth/google/callback
-  ?code=xxx → Login + redirect to dashboard
+### vs. Other Encrypted Apps (Signal, etc.)
+- **Similar**: End-to-end encryption, zero-knowledge
+- **Different**: Two-tier allows password changes without data re-encryption
 
-// User Info
-GET /api/auth/me
-  → { id, email, email_verified, created_at }
-```
+---
 
-### Frontend Changes
+## Technical Decisions
 
-```typescript
-// Update AuthContext
-interface AuthContextType {
-  isAuthenticated: boolean
-  user: User | null
-  login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string) => Promise<boolean>
-  logout: () => void
-  requestPasswordReset: (email: string) => Promise<boolean>
-  resetPassword: (token: string, newPassword: string) => Promise<boolean>
-  encryptionKey: CryptoKey | null
-}
-```
+### Why bcryptjs instead of Argon2?
+- Better support in Cloudflare Workers
+- Industry standard, battle-tested
+- 10 rounds provides good security/performance balance
 
-### Migration Strategy
+### Why localStorage instead of cookies?
+- Simpler for SPA architecture
+- Easier to manage client-side
+- Acceptable security trade-off for this use case
 
-**Phase 1:** Add email/password support (keep passphrase working)
-- Add new schema columns
-- Add email/password login option
-- Existing passphrase users continue working
+### Why 30-day sessions?
+- Balance between security and UX
+- Users don't want to login daily
+- Can be invalidated if needed
 
-**Phase 2:** Deprecate passphrase
-- Show warning to passphrase users
-- Provide migration flow: passphrase → email/password
-- Set deadline for migration
+### Why PBKDF2 instead of Argon2 for KEK?
+- Available in Web Crypto API (browser native)
+- No external dependencies
+- 100k iterations provides good security
+- Fast enough for UX (1-2 seconds on modern devices)
 
-**Phase 3:** Remove passphrase support
-- Remove passphrase login
-- Remove passphrase-based user ID derivation
-- Clean up old code
+### Why AES-GCM instead of ChaCha20-Poly1305?
+- Available in Web Crypto API (browser native)
+- Hardware acceleration on most devices
+- Industry standard for web encryption
 
-## Environment Variables
+---
 
-```bash
-# .dev.vars (local development)
-POSTMARK_API_TOKEN=xxxxx
-POSTMARK_FROM_EMAIL=noreply@coach.app
-APP_URL=http://localhost:5173
-APP_NAME=Coach
-
-# wrangler.toml (production)
-[vars]
-POSTMARK_FROM_EMAIL="noreply@coach.app"
-APP_URL="https://coach.app"
-APP_NAME="Coach"
-
-# Secrets (set via wrangler)
-wrangler secret put POSTMARK_API_TOKEN
-```
-
-## Security Considerations
-
-1. **Password Hashing**: Use Argon2id (or bcrypt if Argon2 not available in Cloudflare Workers)
-2. **Token Security**: UUIDs for tokens, expire in 24 hours
-3. **Rate Limiting**: Limit login attempts, email sends
-4. **HTTPS Only**: Enforce HTTPS in production
-5. **Secure Cookies**: HttpOnly, Secure, SameSite=Strict for session tokens
-6. **Email Verification**: Required before full account access
-7. **Password Requirements**: Minimum 8 characters, encourage strong passwords
-
-## Testing Strategy
-
-1. **Unit Tests**: Email templates, password hashing, encryption
-2. **Integration Tests**: Registration flow, login flow, password reset
-3. **E2E Tests**: Full user journey with Playwright
-4. **Email Testing**: Use Postmark sandbox for development
-
-## Implementation Order
-
-1. ✅ Design architecture (this document)
-2. ⏳ Set up email package structure
-3. ⏳ Create email templates
-4. ⏳ Update D1 schema
-5. ⏳ Implement password hashing
-6. ⏳ Implement registration API
-7. ⏳ Implement login API
-8. ⏳ Update frontend auth
-9. ⏳ Add email verification flow
-10. ⏳ Add password reset flow
-11. ⏳ Add OAuth (Google)
-12. ⏳ Migration strategy for existing users
-13. ⏳ Comprehensive testing
-
-## Questions to Resolve
-
-1. Should we use Argon2id or bcrypt for password hashing?
-   - Argon2id is more secure but may not be available in Workers
-   - bcrypt is widely supported and sufficient
-
-2. Session token storage: cookies vs localStorage?
-   - Cookies are more secure (HttpOnly)
-   - localStorage is easier for SPA
-
-3. How long should tokens be valid?
-   - Verification: 24 hours
-   - Password reset: 1 hour
-   - Session: 30 days with refresh
-
-4. Should email verification be required immediately?
-   - Yes, user can't access dashboard until verified
-   - Send reminder emails if not verified after 24h
-
-5. Data encryption: when to decrypt?
-   - Decrypt on login (keep in memory)
-   - Re-encrypt on logout
-   - Never store decrypted DEK
-
-## Next Steps
-
-1. Get Postmark API credentials
-2. Set up email package structure
-3. Create first email template (verification)
-4. Test email sending locally
-5. Update D1 schema
-6. Begin API implementation
+## Last Updated
+2025-10-26

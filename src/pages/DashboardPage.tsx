@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import TodoList from '../components/TodoList'
 import CoachPanel from '../components/CoachPanel'
+import SecretNote from '../components/SecretNote'
 import ThemeToggle from '../components/ThemeToggle'
 
 export default function DashboardPage() {
@@ -45,7 +46,7 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             {activeMode === 'tasks' ? (
               <Card>
                 <CardHeader>
@@ -73,6 +74,13 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Secret Note Card */}
+            <Card>
+              <CardContent className="pt-6">
+                <SecretNote />
+              </CardContent>
+            </Card>
           </div>
 
           <div className="lg:col-span-1">

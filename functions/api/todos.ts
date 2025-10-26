@@ -1,5 +1,5 @@
-// Cloudflare Pages Function for managing todos
-// This will handle encrypted todo data storage in D1
+// Cloudflare Pages Function for managing encrypted todos
+// Todos are stored encrypted in D1, with session-based authentication
 
 interface Env {
   DB: D1Database
@@ -13,40 +13,89 @@ interface Todo {
   updated_at: number
 }
 
-export async function onRequestGet(context: { env: Env; request: Request }) {
-  const { DB } = context.env
-  const url = new URL(context.request.url)
-  const userId = url.searchParams.get('user_id')
+// Helper function to validate session and get user_id
+async function getUserIdFromSession(request: Request, DB: D1Database): Promise<string | null> {
+  const authHeader = request.headers.get('Authorization')
 
-  if (!userId) {
-    return new Response('Missing user_id', { status: 400 })
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
   }
 
+  const sessionToken = authHeader.substring(7)
+
+  // Validate session token
+  const session = await DB.prepare(
+    'SELECT user_id, expires_at FROM session_tokens WHERE id = ?'
+  ).bind(sessionToken).first()
+
+  if (!session) {
+    return null
+  }
+
+  // Check if session is expired
+  if (session.expires_at < Date.now()) {
+    return null
+  }
+
+  return session.user_id as string
+}
+
+// GET /api/todos - Fetch all todos for authenticated user
+export async function onRequestGet(context: { env: Env; request: Request }) {
+  const { DB } = context.env
+
   try {
+    const userId = await getUserIdFromSession(context.request, DB)
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const { results } = await DB.prepare(
       'SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC'
     ).bind(userId).all()
 
-    return Response.json(results)
+    return new Response(
+      JSON.stringify(results),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
   } catch (error) {
     console.error('Error fetching todos:', error)
-    return new Response('Internal server error', { status: 500 })
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }
 
+// POST /api/todos - Create a new todo
 export async function onRequestPost(context: { env: Env; request: Request }) {
   const { DB } = context.env
 
   try {
+    const userId = await getUserIdFromSession(context.request, DB)
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const body = await context.request.json() as {
-      user_id: string
       encrypted_data: string
     }
 
-    const { user_id, encrypted_data } = body
+    const { encrypted_data } = body
 
-    if (!user_id || !encrypted_data) {
-      return new Response('Missing required fields', { status: 400 })
+    if (!encrypted_data) {
+      return new Response(
+        JSON.stringify({ error: 'Bad request', details: 'Missing encrypted_data' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
     }
 
     const id = crypto.randomUUID()
@@ -54,62 +103,136 @@ export async function onRequestPost(context: { env: Env; request: Request }) {
 
     await DB.prepare(
       'INSERT INTO todos (id, user_id, encrypted_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(id, user_id, encrypted_data, now, now).run()
+    ).bind(id, userId, encrypted_data, now, now).run()
 
-    return Response.json({ id, user_id, encrypted_data, created_at: now, updated_at: now })
+    const newTodo = {
+      id,
+      user_id: userId,
+      encrypted_data,
+      created_at: now,
+      updated_at: now
+    }
+
+    return new Response(
+      JSON.stringify(newTodo),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    )
   } catch (error) {
     console.error('Error creating todo:', error)
-    return new Response('Internal server error', { status: 500 })
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }
 
+// PUT /api/todos - Update an existing todo
 export async function onRequestPut(context: { env: Env; request: Request }) {
   const { DB } = context.env
 
   try {
+    const userId = await getUserIdFromSession(context.request, DB)
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const body = await context.request.json() as {
       id: string
-      user_id: string
       encrypted_data: string
     }
 
-    const { id, user_id, encrypted_data } = body
+    const { id, encrypted_data } = body
 
-    if (!id || !user_id || !encrypted_data) {
-      return new Response('Missing required fields', { status: 400 })
+    if (!id || !encrypted_data) {
+      return new Response(
+        JSON.stringify({ error: 'Bad request', details: 'Missing id or encrypted_data' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
     }
 
     const now = Date.now()
 
-    await DB.prepare(
+    // Update only if user owns this todo
+    const result = await DB.prepare(
       'UPDATE todos SET encrypted_data = ?, updated_at = ? WHERE id = ? AND user_id = ?'
-    ).bind(encrypted_data, now, id, user_id).run()
+    ).bind(encrypted_data, now, id, userId).run()
 
-    return Response.json({ id, user_id, encrypted_data, updated_at: now })
+    if (!result.success || result.meta.changes === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Not found', details: 'Todo not found or unauthorized' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const updatedTodo = {
+      id,
+      user_id: userId,
+      encrypted_data,
+      updated_at: now
+    }
+
+    return new Response(
+      JSON.stringify(updatedTodo),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
   } catch (error) {
     console.error('Error updating todo:', error)
-    return new Response('Internal server error', { status: 500 })
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }
 
+// DELETE /api/todos/:id - Delete a todo
 export async function onRequestDelete(context: { env: Env; request: Request }) {
   const { DB } = context.env
-  const url = new URL(context.request.url)
-  const id = url.searchParams.get('id')
-  const userId = url.searchParams.get('user_id')
-
-  if (!id || !userId) {
-    return new Response('Missing id or user_id', { status: 400 })
-  }
 
   try {
-    await DB.prepare(
+    const userId = await getUserIdFromSession(context.request, DB)
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const url = new URL(context.request.url)
+    const id = url.searchParams.get('id')
+
+    if (!id) {
+      return new Response(
+        JSON.stringify({ error: 'Bad request', details: 'Missing todo id' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Delete only if user owns this todo
+    const result = await DB.prepare(
       'DELETE FROM todos WHERE id = ? AND user_id = ?'
     ).bind(id, userId).run()
 
-    return Response.json({ success: true })
+    if (!result.success || result.meta.changes === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Not found', details: 'Todo not found or unauthorized' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, id }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
   } catch (error) {
     console.error('Error deleting todo:', error)
-    return new Response('Internal server error', { status: 500 })
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }
